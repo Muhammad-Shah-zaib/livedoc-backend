@@ -10,6 +10,8 @@ from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
 
 User = get_user_model()
+
+# authentication backend for http requests
 class CookieJwtAuthentication(BaseAuthentication):
     def authenticate(self, request):
         access_token = request._request.COOKIES.get('access_token')
@@ -49,6 +51,7 @@ class CookieJwtAuthentication(BaseAuthentication):
             except TokenError:
                 return None
 
+# authentication backend for channels
 class CookieAuthMiddlewareStack(BaseMiddleware):
 
     def __init__(self, app):
@@ -70,16 +73,6 @@ class CookieAuthMiddlewareStack(BaseMiddleware):
         # --- Try token from cookies ---
         access_token = cookies.get("access_token")
         refresh_token = cookies.get("refresh_token")
-
-        # --- TEMPORARY: Try token from headers if not found in cookies ---
-        if not access_token:
-            access_token = self._get_header_token(headers, b'access-token')
-
-        if not refresh_token:
-            refresh_token = self._get_header_token(headers, b'refresh-token')
-        scope["user"] = None
-
-
 
         user = None
         if access_token:
