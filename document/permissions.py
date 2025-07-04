@@ -1,9 +1,28 @@
 from rest_framework.permissions import BasePermission
-
+from document.models import Document, DocumentAccess
 
 class IsAdminOfDocument(BasePermission):
     """
-    Custom permission class to check if the user is an admin of the document.
+    Checks if the user is the admin of a Document.
+    Supports:
+    - Object-level permissions (when obj is a Document)
+    - URL kwarg `access_id` for views using DocumentAccess
     """
+
     def has_object_permission(self, request, view, obj):
-        return  obj.admin == request.user
+        # Direct object-level check for Document
+        if isinstance(obj, Document):
+            return obj.admin == request.user
+        return False
+
+    def has_permission(self, request, view):
+        access_id = view.kwargs.get('access_id')
+        if access_id:
+            try:
+                access = DocumentAccess.objects.select_related("document").get(id=access_id)
+                return access.document.admin == request.user
+            except DocumentAccess.DoesNotExist:
+                return False
+
+        # If no access_id in URL, fall back to True and rely on object-level check
+        return True

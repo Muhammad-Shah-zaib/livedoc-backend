@@ -68,7 +68,7 @@ class RequestAccessAPIView(APIView):
 class ApproveAccessAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, access_id):
+    def put(self, request, access_id):
         try:
             access_obj = DocumentAccess.objects.select_related("document", "user").get(id=access_id)
         except DocumentAccess.DoesNotExist:
@@ -95,3 +95,38 @@ class ApproveAccessAPIView(APIView):
         )
 
         return Response({"detail": "Access granted."}, status=status.HTTP_200_OK)
+
+
+class RevokeAccessAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOfDocument]
+
+    def put(self, request, access_id):
+        try:
+            access_obj = DocumentAccess.objects.select_related("document", "user").get(id=access_id)
+        except DocumentAccess.DoesNotExist:
+            return Response({"detail": "Access record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only the document admin can revoke access
+        if access_obj.document.admin != request.user:
+            return Response({"detail": "You are not the admin of this document."}, status=status.HTTP_403_FORBIDDEN)
+
+        # If already revoked
+        if not access_obj.access_approved:
+            return Response({"detail": "Access is already revoked."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Revoke access
+        access_obj.access_approved = False
+        access_obj.can_edit = False
+        access_obj.save()
+
+        # Notify the user via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            generate_group_name_from_user_id(access_obj.user.id),
+            {
+                "type": "send.notification",
+                "message": f"Your access to '{access_obj.document.name}' has been revoked by the admin."
+            }
+        )
+
+        return Response({"detail": "Access revoked."}, status=status.HTTP_200_OK)

@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from user_auth.views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
     ResetPasswordRequestView, LogoutAPIView
-from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView
+from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView
 from .views import ping, test_token
 
 router = DefaultRouter()
@@ -20,7 +20,8 @@ urlpatterns = router.urls + [
 
     # request access to a document
     path('documents/<int:document_id>/request-access', RequestAccessAPIView.as_view(), name='request_access'),
-    path("documentsccess/<int:access_id>/approve-access", ApproveAccessAPIView.as_view(), name='approve_access'),
+    path("documentaccess/<int:access_id>/approve-access", ApproveAccessAPIView.as_view(), name='approve_access'),
+    path("documentaccess/<int:access_id>/revoke-access", RevokeAccessAPIView.as_view(), name='revoke_access'),
 
     # email verification url
     path("email-verification/<uidb64>/<token>/", VerifyEmailView.as_view(), name='email_verification'),
