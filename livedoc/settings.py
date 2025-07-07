@@ -141,6 +141,7 @@ CHANNEL_LAYERS = {
     }
 }
 
+REDIS_URL = "redis://127.0.0.1:6379/0"
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=1000),

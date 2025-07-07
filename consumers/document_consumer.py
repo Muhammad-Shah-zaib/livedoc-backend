@@ -1,15 +1,18 @@
 import json
+from redis.asyncio import Redis
 from channels.exceptions import DenyConnection
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from document.models import Document, DocumentAccess
+from utils.redis_key_generator import get_key_for_document
+
+from django.conf import settings
 
 
 class DocumentLiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope["user"]
         # Auth check
-        if not self.user:
+        if 'user' not in self.scope or self.scope['user'] is None:
             await self.accept()
             await self.send(json.dumps({
                 "type": "error",
@@ -18,12 +21,14 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             await self.close(code=4001)
             raise DenyConnection()
 
+        self.user = self.scope['user']
         self.share_token = self.scope["url_route"]["kwargs"]["share_token"]
         self.group_name = f"doc_{self.share_token}"
         # Fetch document
         self.document = await sync_to_async(Document.objects.get)(share_token=self.share_token)
         self.is_admin = await self.is_user_admin()
-        print(self.user, self.is_admin)
+        self.redis = await Redis.from_url(settings.REDIS_URL)
+
         if not self.document.is_live and not self.is_admin:
             await self.accept()
             await self.send(json.dumps({
@@ -32,6 +37,21 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             }))
             await self.close(code=4002)
             raise DenyConnection()
+
+        # Manually track presence
+        # Add user ID to the presence set
+        self.redis_document_key = get_key_for_document(self.document.share_token)
+        await self.redis.sadd(self.redis_document_key, str(self.user.id))
+
+        # Add user metadata to a hash
+        await self.redis.hset(
+            f"doc:{self.share_token}:user:{self.user.id}",
+            mapping={
+                "first_name": self.user.first_name,
+                "last_name": self.user.last_name,
+                "email": self.user.email
+            }
+        )
 
         await self.accept()
         await self.channel_layer.group_add(self.group_name, self.channel_name)
@@ -42,7 +62,18 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
         }))
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        # Only try to clean up Redis if user and share_token are set
+        if hasattr(self, "user") and hasattr(self, "share_token") and hasattr(self, "redis"):
+            try:
+                await self.redis.srem(f"doc:{self.share_token}:users", str(self.user.id))
+                await self.redis.delete(f"doc:{self.share_token}:user:{self.user.id}")
+
+            except Exception as e:
+                # Log error if needed
+                print(f"Redis cleanup error: {e}")
+
+        if hasattr(self, "channel_layer") and hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data):
         data = json.loads(text_data)
