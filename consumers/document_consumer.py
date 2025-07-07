@@ -83,6 +83,15 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             "message": "Document is now live."
         }))
 
+    async def broadcast_comment(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "new_comment" if event["action"] == "create" else "update_comment",
+            "id": event["id"],
+            "user": event["user"],
+            "content": event["content"],
+            "commented_at": event["commented_at"]
+        }))
+
     @sync_to_async
     def update_document_content(self, content):
         self.document.content = content

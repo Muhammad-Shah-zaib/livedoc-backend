@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission
-from document.models import Document, DocumentAccess
+from document.models import Document, DocumentAccess, Comment
 
 class IsAdminOfDocument(BasePermission):
     """
@@ -26,3 +26,17 @@ class IsAdminOfDocument(BasePermission):
 
         # If no access_id in URL, fall back to True and rely on object-level check
         return True
+
+
+class IsCommentOwner(BasePermission):
+    """
+    Checks if the user is the owner of a Comment.
+    Supports:
+    - Object-level permissions for Comment instances
+    """
+
+    def has_object_permission(self, request, view, obj):
+        if isinstance(obj, Comment):
+            return obj.user == request.user
+
+        return False

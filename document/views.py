@@ -1,4 +1,5 @@
 from django.utils import timezone
+from rest_framework.generics import ListCreateAPIView, UpdateAPIView
 
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -9,13 +10,10 @@ from rest_framework import status
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-from .models import Document, DocumentAccess
-from .permissions import IsAdminOfDocument
-from .serializers import DocumentSerializer
+from .models import Document, DocumentAccess, Comment
+from .permissions import IsAdminOfDocument, IsCommentOwner
+from .serializers import DocumentSerializer, CommentSerializer
 from utils.ws_groups import generate_group_name_from_user_id
-
-
-# Create your views here.
 
 
 class DocumentViewSet(ModelViewSet):
@@ -27,7 +25,6 @@ class DocumentViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(admin=self.request.user)
-
 
 class RequestAccessAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -50,7 +47,7 @@ class RequestAccessAPIView(APIView):
             }
         )
 
-        # Use secure admin group
+        # admin group name to send notification
         admin_group = generate_group_name_from_user_id(document.admin.id)
 
         # Send WebSocket notification to admin-only group
@@ -66,7 +63,7 @@ class RequestAccessAPIView(APIView):
         return Response({"detail": "Access request sent."}, status=status.HTTP_200_OK)
 
 class ApproveAccessAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOfDocument]
 
     def put(self, request, access_id):
         try:
@@ -74,9 +71,9 @@ class ApproveAccessAPIView(APIView):
         except DocumentAccess.DoesNotExist:
             return Response({"detail": "Access request not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Ensure only the admin can approve access
-        if access_obj.document.admin != request.user:
-            return Response({"detail": "You are not the admin of this document."}, status=status.HTTP_403_FORBIDDEN)
+        # # Ensure only the admin can approve access
+        # if access_obj.document.admin != request.user:
+        #     return Response({"detail": "You are not the admin of this document."}, status=status.HTTP_403_FORBIDDEN)
 
         # Approve access
         access_obj.access_approved = True
@@ -95,7 +92,6 @@ class ApproveAccessAPIView(APIView):
         )
 
         return Response({"detail": "Access granted."}, status=status.HTTP_200_OK)
-
 
 class RevokeAccessAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOfDocument]
@@ -130,3 +126,62 @@ class RevokeAccessAPIView(APIView):
         )
 
         return Response({"detail": "Access revoked."}, status=status.HTTP_200_OK)
+
+class CommentListCreateView(ListCreateAPIView):
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        document_id = self.kwargs["document_id"]
+        return Comment.objects.filter(document_id=document_id).order_by("-id")
+
+    def perform_create(self, serializer):
+        document = Document.objects.get(id=self.kwargs["document_id"])
+        comment = serializer.save(user=self.request.user, document=document)
+
+        # Broadcast if live
+        if document.is_live:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"doc_{document.share_token}",
+                {
+                    "type": "broadcast.comment",
+                    "action": "create",
+                    "user": {
+                        "email": self.request.user.email,
+                        "first_name": self.request.user.first_name,
+                        "last_name": self.request.user.last_name,
+                    },
+                    "content": comment.content,
+                    "commented_at": comment.commented_at.isoformat(),
+                    "id": comment.id
+                }
+            )
+
+class CommentUpdateView(UpdateAPIView):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated, IsCommentOwner]
+
+    def perform_update(self, serializer):
+        comment = serializer.save()
+        document = comment.document
+
+        # Broadcast if live
+        if document.is_live:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"doc_{document.share_token}",
+                {
+                    "type": "broadcast.comment",
+                    "action": "update",
+                    "user": {
+                        "email": comment.user.email,
+                        "first_name": comment.user.first_name,
+                        "last_name": comment.user.last_name,
+                    },
+                    "content": comment.content,
+                    "commented_at": comment.commented_at.isoformat(),
+                    "id": comment.id
+                }
+            )
