@@ -8,11 +8,8 @@ from document.models import Document, DocumentAccess
 class DocumentLiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
-        self.share_token = self.scope["url_route"]["kwargs"]["share_token"]
-        self.group_name = f"doc_{self.share_token}"
-
         # Auth check
-        if not self.user or not self.user.is_authenticated:
+        if not self.user:
             await self.accept()
             await self.send(json.dumps({
                 "type": "error",
@@ -21,8 +18,20 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             await self.close(code=4001)
             raise DenyConnection()
 
+        self.share_token = self.scope["url_route"]["kwargs"]["share_token"]
+        self.group_name = f"doc_{self.share_token}"
         # Fetch document
         self.document = await sync_to_async(Document.objects.get)(share_token=self.share_token)
+        self.is_admin = await self.is_user_admin()
+        print(self.user, self.is_admin)
+        if not self.document.is_live and not self.is_admin:
+            await self.accept()
+            await self.send(json.dumps({
+                "type": "error",
+                "message": "Document is not live."
+            }))
+            await self.close(code=4002)
+            raise DenyConnection()
 
         await self.accept()
         await self.channel_layer.group_add(self.group_name, self.channel_name)
@@ -61,8 +70,15 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             )
 
         elif message_type == "set_live":
-            if await self.is_user_admin():
-                await self.set_document_live()
+            if self.is_admin:
+                new_status = data.get("status", True)
+                if (self.document.is_live == new_status):
+                    await self.send(text_data=json.dumps({
+                        "type": "error",
+                        "message": f"Document is already {'live' if new_status else 'not live'}."
+                    }))
+                    return
+                await self.set_document_live(status=new_status)
             else:
                 await self.send(text_data=json.dumps({
                     "type": "error",
@@ -75,12 +91,23 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             "content": event["content"]
         }))
 
-    async def set_document_live(self):
-        self.document.is_live = True
+    async def set_document_live(self, status=True):
+        self.document.is_live = status
         await sync_to_async(self.document.save)()
+
+        if not status:
+            # Broadcast force disconnect to all users in the group
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    "type": "force.disconnect",
+                    "message": "Document is no longer live. Disconnecting."
+                }
+            )
+
         await self.send(text_data=json.dumps({
             "type": "document_live",
-            "message": "Document is now live."
+            "message": f"Document is now {'live' if status else 'not live'}."
         }))
 
     async def broadcast_comment(self, event):
@@ -91,6 +118,14 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             "content": event["content"],
             "commented_at": event["commented_at"]
         }))
+
+    async def force_disconnect(self, event):
+        if not self.is_admin:
+            await self.send(text_data=json.dumps({
+                "type": "force_disconnect",
+                "message": event["message"]
+            }))
+            await self.close()
 
     @sync_to_async
     def update_document_content(self, content):

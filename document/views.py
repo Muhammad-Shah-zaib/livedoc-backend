@@ -14,6 +14,7 @@ from .models import Document, DocumentAccess, Comment
 from .permissions import IsAdminOfDocument, IsCommentOwner
 from .serializers import DocumentSerializer, CommentSerializer
 from utils.ws_groups import generate_group_name_from_user_id
+from utils.db_helper import get_document_or_404, get_document_access_or_404
 
 
 class DocumentViewSet(ModelViewSet):
@@ -30,14 +31,18 @@ class RequestAccessAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, document_id):
-        try:
-            document = Document.objects.get(id=document_id)
-        except Document.DoesNotExist:
-            return Response({"detail": "Document not found."}, status=status.HTTP_404_NOT_FOUND)
+        document = get_document_or_404(document_id)
 
         if document.admin == request.user:
             return Response({"detail": "You are the admin of this document."}, status=status.HTTP_400_BAD_REQUEST)
 
+        if document.accesses.filter(user=request.user, access_requested=True).exists():
+            return Response({"detail": "Access request already sent."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not document.is_live:
+            return Response({"detail": "Document is not live."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create or update the access request
         access_obj, created = DocumentAccess.objects.update_or_create(
             document=document,
             user=request.user,
@@ -65,15 +70,16 @@ class RequestAccessAPIView(APIView):
 class ApproveAccessAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOfDocument]
 
-    def put(self, request, access_id):
-        try:
-            access_obj = DocumentAccess.objects.select_related("document", "user").get(id=access_id)
-        except DocumentAccess.DoesNotExist:
-            return Response({"detail": "Access request not found."}, status=status.HTTP_404_NOT_FOUND)
+    def patch(self, request, access_id):
+        access_obj = get_document_access_or_404(access_id)
 
-        # # Ensure only the admin can approve access
-        # if access_obj.document.admin != request.user:
-        #     return Response({"detail": "You are not the admin of this document."}, status=status.HTTP_403_FORBIDDEN)
+        # ✅ Check if already approved
+        if access_obj.access_approved:
+            return Response({"detail": "Access is already approved."}, status=status.HTTP_200_OK)
+
+        # ✅ Check if access was even requested
+        if not access_obj.access_requested:
+            return Response({"detail": "Access has not been requested yet."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Approve access
         access_obj.access_approved = True
@@ -97,14 +103,7 @@ class RevokeAccessAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOfDocument]
 
     def put(self, request, access_id):
-        try:
-            access_obj = DocumentAccess.objects.select_related("document", "user").get(id=access_id)
-        except DocumentAccess.DoesNotExist:
-            return Response({"detail": "Access record not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Only the document admin can revoke access
-        if access_obj.document.admin != request.user:
-            return Response({"detail": "You are not the admin of this document."}, status=status.HTTP_403_FORBIDDEN)
+        access_obj = get_document_access_or_404(access_id)
 
         # If already revoked
         if not access_obj.access_approved:
@@ -127,6 +126,8 @@ class RevokeAccessAPIView(APIView):
 
         return Response({"detail": "Access revoked."}, status=status.HTTP_200_OK)
 
+from rest_framework.exceptions import NotFound
+
 class CommentListCreateView(ListCreateAPIView):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
@@ -136,7 +137,9 @@ class CommentListCreateView(ListCreateAPIView):
         return Comment.objects.filter(document_id=document_id).order_by("-id")
 
     def perform_create(self, serializer):
-        document = Document.objects.get(id=self.kwargs["document_id"])
+        document_id = self.kwargs["document_id"]
+        document = get_document_or_404(document_id)
+
         comment = serializer.save(user=self.request.user, document=document)
 
         # Broadcast if live
@@ -154,9 +157,11 @@ class CommentListCreateView(ListCreateAPIView):
                     },
                     "content": comment.content,
                     "commented_at": comment.commented_at.isoformat(),
+                    "updated_at": comment.updated_at.isoformat(),
                     "id": comment.id
                 }
             )
+
 
 class CommentUpdateView(UpdateAPIView):
     queryset = Comment.objects.all()
@@ -182,6 +187,7 @@ class CommentUpdateView(UpdateAPIView):
                     },
                     "content": comment.content,
                     "commented_at": comment.commented_at.isoformat(),
+                    "updated_at": comment.updated_at.isoformat(),
                     "id": comment.id
                 }
             )
