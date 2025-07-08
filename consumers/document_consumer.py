@@ -51,7 +51,8 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
 
         await self.send(text_data=json.dumps({
             "type": "connection",
-            "message": "Connected to live document channel."
+            "message": "Connected to live document channel.",
+            "content": self.document.content
         }))
 
     async def disconnect(self, close_code):
