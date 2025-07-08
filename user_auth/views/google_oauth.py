@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import update_last_login
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -48,6 +49,10 @@ class GoogleLoginAPIView(APIView):
                     user.save()
 
             refresh = RefreshToken.for_user(user)
+
+            # Update last login time
+            update_last_login(None, user)  # type: ignore
+            
             response = Response({"detail": "Login successful", "user": {
                 "email": user.email,
                 "first_name": user.first_name,
