@@ -40,8 +40,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
 
     async def check_user(self):
-        if not self.scope["user"]:
-            await self.accept()  # Accept to send error message
+        if "user" not in self.scope or self.scope["user"] is None:
+            await self.accept()  # Accept to send the error message
             await self.send(json.dumps({
                 "error": "unauthorized",
                 "message": "User is not logged in"

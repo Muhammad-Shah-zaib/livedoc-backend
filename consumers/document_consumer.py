@@ -12,14 +12,7 @@ from django.conf import settings
 class DocumentLiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # Auth check
-        if 'user' not in self.scope or self.scope['user'] is None:
-            await self.accept()
-            await self.send(json.dumps({
-                "type": "error",
-                "message": "User is not logged in"
-            }))
-            await self.close(code=4001)
-            raise DenyConnection()
+        await self.check_user()
 
         self.user = self.scope['user']
         self.share_token = self.scope["url_route"]["kwargs"]["share_token"]
@@ -177,3 +170,13 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def is_user_admin(self):
         return self.document.admin_id == self.user.id
+
+    async def check_user(self):
+        if "user" not in self.scope or self.scope["user"] is None:
+            await self.accept()  # Accept to send the error message
+            await self.send(json.dumps({
+                "error": "unauthorized",
+                "message": "User is not logged in"
+            }))
+            await self.close(code=4001)
+            raise DenyConnection()
