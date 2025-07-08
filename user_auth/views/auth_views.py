@@ -9,7 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.tokens import default_token_generator
 from utils.tokens import default_email_token_generator
 
-from .email import send_verification_email, send_reset_password_email
+from user_auth.email import send_verification_email, send_reset_password_email
 from user_auth.serializers import UserSerializer
 
 
