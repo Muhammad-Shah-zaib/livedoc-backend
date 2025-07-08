@@ -3,9 +3,10 @@ from rest_framework.routers import DefaultRouter
 
 from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
     ResetPasswordRequestView, LogoutAPIView
-from user_auth.views.google_oauth import GoogleLoginAPIView
+from user_auth.views.google_oauth_views import GoogleLoginAPIView
 from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView, \
     CommentListCreateView, CommentUpdateView
+from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView
 from .views import ping, test_token
 
 router = DefaultRouter()
@@ -20,6 +21,11 @@ urlpatterns = router.urls + [
     path('login/', LoginAPIView.as_view(), name='login'),
     path("logout/", LogoutAPIView.as_view(), name='logout'),
     path("login/google/", GoogleLoginAPIView.as_view(), name='google_login'),
+
+    # User profile URLs
+    path('user/profile/', UserInfoUpdateView.as_view(), name='user_profile_update'),
+    path("user/get-profile/", UserProfileView.as_view(), name='user_profile_get'),
+    path("user/change-password/", PasswordChangeView.as_view(), name='change_password'),
 
     # request access to a document
     path('documents/<int:document_id>/request-access', RequestAccessAPIView.as_view(), name='request_access'),

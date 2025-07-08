@@ -41,7 +41,7 @@ class RegisterApiView(APIView):
 
 class LoginAPIView(APIView):
     def post(self, request):
-        email = request.data.get("email")
+        email = request.data.get("email").strip().lower()
         password = request.data.get("password")
 
         if not email or not password:
@@ -76,7 +76,7 @@ class LoginAPIView(APIView):
             httponly=True,
             secure=True,  # True in production (HTTPS)
             samesite='None',  # Or 'Strict'/'None'
-            max_age=60 * 1000,  # 1000 minutes for access token
+            max_age=60 * 60 * 24 * 100,  # 100 days for access token
         )
 
         response.set_cookie(
@@ -133,7 +133,8 @@ class VerifyEmailView(APIView):
 
 class ResetPasswordRequestView(APIView):
     def post(self, request):
-        email = request.data.get("email")
+        email = request.data.get("email").strip().lower()
+        # normalize email input
 
         if not email:
             return Response({"message": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
