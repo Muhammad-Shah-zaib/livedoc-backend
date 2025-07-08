@@ -23,12 +23,12 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'password', 'is_active']
-        read_only_fields = ['id', 'is_active']
+        fields = ['id', 'email', 'first_name', 'last_name', 'password', 'is_active', 'is_oauth_verified']
+        read_only_fields = ['id', 'is_active', 'is_oauth_verified']
 
     def create(self, validated_data):
         return CustomUser.objects.create_user(
-            email=validated_data['email'],
+            email=validated_data['email'].strip().lower(),
             password=validated_data['password'],
             first_name=validated_data['first_name'],
             last_name=validated_data.get('last_name', '')

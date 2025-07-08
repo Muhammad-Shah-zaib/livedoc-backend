@@ -41,7 +41,7 @@ class RegisterApiView(APIView):
 
 class LoginAPIView(APIView):
     def post(self, request):
-        email = request.data.get("email").strip().lower()
+        email = request.data.get("email", "").strip().lower()
         password = request.data.get("password")
 
         if not email or not password:
@@ -51,14 +51,21 @@ class LoginAPIView(APIView):
         user = authenticate(request, email=email, password=password)
 
         if not user:
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user and existing_user.is_oauth_verified:
+                return Response({
+                    "message": "This account was created using a third-party login (e.g., Google). Please use the appropriate login method.",
+                    "is_oauth_verified": True
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             return Response({"message": "Invalid email or password."},
                             status=status.HTTP_401_UNAUTHORIZED)
 
         if not user.is_active:
             return Response({"message": "Account is inactive."},
                             status=status.HTTP_403_FORBIDDEN)
-        # the user is authenticated and active
-        update_last_login(None, user) # type: ignore
+
+        update_last_login(None, user)  # type: ignore
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -74,18 +81,18 @@ class LoginAPIView(APIView):
             key='access_token',
             value=access_token,
             httponly=True,
-            secure=True,  # True in production (HTTPS)
-            samesite='None',  # Or 'Strict'/'None'
-            max_age=60 * 60 * 24 * 100,  # 100 days for access token
+            secure=True,
+            samesite='None',
+            max_age=60 * 60 * 24 * 100,
         )
 
         response.set_cookie(
             key='refresh_token',
             value=refresh_token,
             httponly=True,
-            secure=True,  # True in production
+            secure=True,
             samesite='None',
-            max_age= 60 * 60 * 24 * 100,  # 100 days for refresh token
+            max_age=60 * 60 * 24 * 100,
         )
 
         return response
@@ -134,6 +141,7 @@ class VerifyEmailView(APIView):
 class ResetPasswordRequestView(APIView):
     def post(self, request):
         email = request.data.get("email").strip().lower()
+        print(email)
         # normalize email input
 
         if not email:
