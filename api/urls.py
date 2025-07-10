@@ -4,8 +4,13 @@ from rest_framework.routers import DefaultRouter
 from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
     ResetPasswordRequestView, LogoutAPIView
 from user_auth.views.google_oauth_views import GoogleLoginAPIView
+
 from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView, \
     CommentListCreateView, CommentUpdateView
+
+from ai.views.summarize_document_view import SummarizeDocumentView
+from ai.views.text_completion_view import TextCompletionView
+
 from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView
 from .views import ping, test_token
 
@@ -42,4 +47,8 @@ urlpatterns = router.urls + [
     # Comment URLs
     path("documents/<int:document_id>/comments/", CommentListCreateView.as_view(), name='comments'),
     path("comments/<int:pk>/", CommentUpdateView.as_view(), name='comment_update'),
+
+    # ai URLs
+    path("ai/documents/summarize/", SummarizeDocumentView.as_view(), name='summarize_document'),
+    path("ai/documents/text-completion/", TextCompletionView.as_view(), name='text_completion'),
 ]

@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'document',
     'consumers',
     'utils',
+    'ai',
 ]
 
 MIDDLEWARE = [
@@ -173,3 +174,6 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # Google OAuth2 settings
 GOOGLE_OAUTH2_CLIENT_ID = config('GOOGLE_OAUTH2_CLIENT_ID')
 GOOGLE_OAUTH2_CLIENT_SECRET = config('GOOGLE_OAUTH2_CLIENT_SECRET')
+
+# GEMINI settings
+GEMINI_API_KEY = config('GEMINI_API_KEY')
