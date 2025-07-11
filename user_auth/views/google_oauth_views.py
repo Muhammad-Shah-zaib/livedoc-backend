@@ -14,7 +14,7 @@ class GoogleLoginAPIView(APIView):
     def post(self, request):
         token = request.data.get("token")
         if not token:
-            return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user_info = id_token.verify_oauth2_token(
@@ -53,14 +53,19 @@ class GoogleLoginAPIView(APIView):
             # Update last login time
             update_last_login(None, user)  # type: ignore
             
-            response = Response({"detail": "Login successful", "user": {
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-            }}, status=200)
+            response = Response({
+                "detail": "Login successful",
+                "user": {
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_oauth_verified": user.is_oauth_verified,
+                    "is_active": user.is_active,
+                }
+            }, status=200)
             response.set_cookie("access_token", str(refresh.access_token), httponly=True, secure=True, samesite="None")
             response.set_cookie("refresh_token", str(refresh), httponly=True, secure=True, samesite="None")
             return response
 
         except ValueError:
-            return Response({"error": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"message": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED)
