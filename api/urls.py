@@ -41,7 +41,7 @@ urlpatterns = router.urls + [
     path("email-verification/<uidb64>/<token>/", VerifyEmailView.as_view(), name='email_verification'),
 
     # reset password url
-    path("reset-password/", ResetPasswordRequestView.as_view(), name='reset_password_request'),
+    path("forgot-password/", ResetPasswordRequestView.as_view(), name='reset_password_request'),
     path("reset-password/<uidb64>/<token>/", ResetPasswordConfirmView.as_view(), name='reset_password'),
 
     # Comment URLs

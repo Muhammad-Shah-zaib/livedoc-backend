@@ -31,7 +31,7 @@ def send_verification_email(user):
 def send_reset_password_email(user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    reset_url = f"http://localhost:8000/api/reset-password/{uid}/{token}/"
+    reset_url = f"http://localhost:5173/reset-password/{uid}/{token}/"
 
     subject = "Reset your password"
     from_email = settings.DEFAULT_FROM_EMAIL

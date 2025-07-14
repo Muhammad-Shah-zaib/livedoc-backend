@@ -1,8 +1,24 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
+
 from user_auth.models import CustomUser  # Adjust import if needed
 from utils.validators import validate_password_strength
 
 class UserSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        required=True,
+        validators=[
+            UniqueValidator(
+                queryset=CustomUser.objects.all(),
+                message="A user with this email already exists."
+            )
+        ],
+        error_messages={
+            "blank": "Email cannot be empty.",
+            "required": "Email is required."
+        }
+    )
+
     password = serializers.CharField(
         write_only=True,
         min_length=6,
