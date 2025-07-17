@@ -5,8 +5,13 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from document.models import Document, DocumentAccess
 from utils.redis_key_generator import get_key_for_document
+import y_py as Y
+from collections import defaultdict
+
 
 from django.conf import settings
+
+DOC_MAP = defaultdict(lambda: Y.YDoc())
 
 
 class DocumentLiveConsumer(AsyncWebsocketConsumer):
@@ -17,6 +22,7 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
         self.user = self.scope['user']
         self.share_token = self.scope["url_route"]["kwargs"]["share_token"]
         self.group_name = f"doc_{self.share_token}"
+
         # Fetch document
         self.document = await sync_to_async(Document.objects.get)(share_token=self.share_token)
         self.is_admin = await self.is_user_admin()
@@ -52,7 +58,15 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "connection",
             "message": "Connected to live document channel.",
-            "content": self.document.content
+            "content": self.document.content,
+            "document": {
+                "id": str(self.document.id),
+                "name": self.document.name,
+                "content": self.document.content,
+                "is_live": self.document.is_live,
+                "created_at": self.document.created_at.isoformat(),
+                "share_token": str(self.document.share_token),
+            }
         }))
 
     async def disconnect(self, close_code):
@@ -69,11 +83,16 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
         if hasattr(self, "channel_layer") and hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-    async def receive(self, text_data):
+    async def receive(self, text_data= None, bytes_data = None):
+        if text_data is not None:
+            await self.receive_text_data(text_data)
+        if bytes_data is not None:
+            await self.receive_bytes_data(bytes_data)
+
+    async def receive_text_data(self, text_data):
         data = json.loads(text_data)
         message_type = data.get("type")
 
-        print(f"USER -> {self.user}")
 
         if message_type == "update_content":
             content = data.get("content", "")
@@ -109,6 +128,29 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
                     "type": "error",
                     "message": "Only the admin can set the document live."
                 }))
+
+    async def receive_bytes_data(self, bytes_data):
+        doc = DOC_MAP[self.share_token]
+
+        try:
+            msg_type = bytes_data[0]
+            data = bytes_data[1:]
+
+            if msg_type == 0:
+                update = Y.encode_state_as_update(doc, data)
+                await self.send(bytes_data=b"\x01" + update)
+
+            elif msg_type == 1:
+                Y.apply_update(doc, data)
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {"type": "document.yjs_update", "bytes": bytes_data}
+                )
+        except Exception as e:
+            print(f"Error processing bytes_data: {e}")
+
+    async def document_yjs_update(self, event):
+        await self.send(bytes_data=event["bytes"])  # Send raw Yjs update
 
     async def document_update(self, event):
         await self.send(text_data=json.dumps({

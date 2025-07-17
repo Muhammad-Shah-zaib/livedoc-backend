@@ -1,5 +1,7 @@
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.generics import ListCreateAPIView, UpdateAPIView
+from rest_framework.decorators import action
 
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -12,9 +14,22 @@ from channels.layers import get_channel_layer
 
 from .models import Document, DocumentAccess, Comment
 from .permissions import IsAdminOfDocument, IsCommentOwner
-from .serializers import DocumentSerializer, CommentSerializer
+from .serializers import DocumentSerializer, CommentSerializer, DocumentAccessSerializer
 from utils.ws_groups import generate_group_name_from_user_id
-from utils.db_helper import get_document_or_404, get_document_access_or_404
+from utils.db_helper import get_document_or_404, get_document_access_or_404, get_document_by_share_token_or_404
+
+import uuid
+
+
+
+class DocumentAccessViewSet(ModelViewSet):
+    serializer_class = DocumentAccessSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['document', 'access_requested', 'access_approved']  # ← auto filters
+
+    def get_queryset(self):
+        return DocumentAccess.objects.filter(document__admin=self.request.user)
 
 
 class DocumentViewSet(ModelViewSet):
@@ -25,13 +40,21 @@ class DocumentViewSet(ModelViewSet):
         return Document.objects.filter(admin=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(admin=self.request.user)
+        import secrets
+        share_token = uuid.uuid4()
+        serializer.save(admin=self.request.user, share_token=share_token)
+
+    @action(detail=False, methods=["get"], url_path="by-token/(?P<token>[^/.]+)", permission_classes=[])
+    def get_by_share_token(self, request, token=None):
+        document = get_document_by_share_token_or_404(share_token=token)
+        serializer = self.get_serializer(document)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class RequestAccessAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, document_id):
-        document = get_document_or_404(document_id)
+    def post(self, request, share_token):
+        document = get_document_by_share_token_or_404(share_token)
 
         if document.admin == request.user:
             return Response({"detail": "You are the admin of this document."}, status=status.HTTP_400_BAD_REQUEST)

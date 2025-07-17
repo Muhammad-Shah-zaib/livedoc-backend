@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'consumers',
     'utils',
     'ai',
+    'notification',
 ]
 
 MIDDLEWARE = [
@@ -130,6 +131,9 @@ REST_FRAMEWORK = {
         'user_auth.auth.CookieJwtAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
+    ]
 }
 
 # Channels

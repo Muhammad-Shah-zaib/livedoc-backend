@@ -1,10 +1,16 @@
 import json
 
+from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.exceptions import DenyConnection
 
+from notification.serializers import NotificationSerializer
 from utils.ws_groups import generate_group_name_from_user_id
+from django.contrib.auth import get_user_model
 
+from notification.models import Notification
+
+User = get_user_model()
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -58,7 +64,30 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     # FUNCTION TO SEND NOTIFICATIONS TO THE USER
     async def send_notification(self, event):
+        # Extract data from the event
+        message = event["message"]
+        notif_type = event.get("type", "info")  # fallback to "info"
+        recipient_id = self.scope["user"].id
+
+        # Ensure we have a valid recipient
+        if not recipient_id:
+            return
+
+        # Save to DB
+        notification = await self.create_notification(recipient_id, message, notif_type)
+
+        # Serialize
+        serializer = NotificationSerializer(notification)
         await self.send(text_data=json.dumps({
             "type": "notification",
-            "message": event["message"]
+            "payload": serializer.data
         }))
+
+    @sync_to_async
+    def create_notification(self, recipient_id, message, notif_type):
+        recipient = User.objects.get(id=recipient_id)
+        return Notification.objects.create(
+            recipient=recipient,
+            message=message,
+            type=notif_type
+        )

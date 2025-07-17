@@ -1,12 +1,13 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from notification.views import NotificationViewSet
 from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
     ResetPasswordRequestView, LogoutAPIView
 from user_auth.views.google_oauth_views import GoogleLoginAPIView
 
 from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView, \
-    CommentListCreateView, CommentUpdateView
+    CommentListCreateView, CommentUpdateView, DocumentAccessViewSet
 
 from ai.views.summarize_document_view import SummarizeDocumentView
 from ai.views.text_completion_view import TextCompletionView
@@ -16,6 +17,8 @@ from .views import ping, test_token
 
 router = DefaultRouter()
 router.register('documents', DocumentViewSet, basename='document')
+router.register('document_access', DocumentAccessViewSet, basename='document_access')
+router.register('notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = router.urls + [
     path('', ping, name='ping'),
@@ -33,9 +36,9 @@ urlpatterns = router.urls + [
     path("user/change-password/", PasswordChangeView.as_view(), name='change_password'),
 
     # request access to a document
-    path('documents/<int:document_id>/request-access', RequestAccessAPIView.as_view(), name='request_access'),
-    path("documentaccess/<int:access_id>/approve-access", ApproveAccessAPIView.as_view(), name='approve_access'),
-    path("documentaccess/<int:access_id>/revoke-access", RevokeAccessAPIView.as_view(), name='revoke_access'),
+    path('documents/<str:share_token>/request-access', RequestAccessAPIView.as_view(), name='request_access'),
+    path("document_access/<int:access_id>/approve-access", ApproveAccessAPIView.as_view(), name='approve_access'),
+    path("document_access/<int:access_id>/revoke-access", RevokeAccessAPIView.as_view(), name='revoke_access'),
 
     # email verification url
     path("email-verification/<uidb64>/<token>/", VerifyEmailView.as_view(), name='email_verification'),
