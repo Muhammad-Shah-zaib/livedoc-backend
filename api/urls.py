@@ -12,7 +12,7 @@ from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessA
 from ai.views.summarize_document_view import SummarizeDocumentView
 from ai.views.text_completion_view import TextCompletionView
 
-from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView
+from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView, GetUserByEmailView
 from .views import ping, test_token
 
 router = DefaultRouter()
@@ -34,6 +34,7 @@ urlpatterns = router.urls + [
     path('user/profile/', UserInfoUpdateView.as_view(), name='user_profile_update'),
     path("user/get-profile/", UserProfileView.as_view(), name='user_profile_get'),
     path("user/change-password/", PasswordChangeView.as_view(), name='change_password'),
+    path("user/by-email", GetUserByEmailView.as_view(), name='get_user_by_email'),
 
     # request access to a document
     path('documents/<str:share_token>/request-access', RequestAccessAPIView.as_view(), name='request_access'),

@@ -1,4 +1,6 @@
 # user_profile_views.py
+from django.contrib.auth import get_user_model
+from django.core.serializers import get_serializer
 from rest_framework.generics import UpdateAPIView
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -8,6 +10,8 @@ from rest_framework import status
 from user_auth.models import CustomUser
 from user_auth.serializers import UserUpdateSerializer, PasswordChangeSerializer, UserSerializer
 
+
+User = get_user_model();
 # api view to get user details
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -16,6 +20,35 @@ class UserProfileView(APIView):
         user = request.user
         serializer = UserSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class GetUserByEmailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        email = request.query_params.get('email')
+        if not email:
+            return Response(
+                {"detail": "Email query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "User with this email does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = UserSerializer(user)
+        return Response(
+            {
+                "user": serializer.data,
+                "detail": "User fetched successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 class UserInfoUpdateView(UpdateAPIView):
     queryset = CustomUser.objects.all()

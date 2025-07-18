@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.generics import ListCreateAPIView, UpdateAPIView
@@ -20,17 +21,67 @@ from utils.db_helper import get_document_or_404, get_document_access_or_404, get
 
 import uuid
 
-
+User = get_user_model()
 
 class DocumentAccessViewSet(ModelViewSet):
     serializer_class = DocumentAccessSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['document', 'access_requested', 'access_approved']  # ← auto filters
+    filterset_fields = ['document', 'access_requested', 'access_approved']
 
     def get_queryset(self):
         return DocumentAccess.objects.filter(document__admin=self.request.user)
 
+    @action(detail=False, methods=["post"], url_path="grant-access")
+    def grant_access(self, request):
+        user_id = request.data.get("user_id")
+        document_id = request.data.get("document_id")
+        can_edit = request.data.get("can_edit", True)
+
+        if not user_id or not document_id:
+            return Response(
+                {"detail": "Both fields are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+            document = Document.objects.get(id=document_id, admin=request.user)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Document.DoesNotExist:
+            return Response({"detail": "Document not found or you're not the admin."}, status=status.HTTP_404_NOT_FOUND)
+
+        access_obj, created = DocumentAccess.objects.update_or_create(
+            document=document,
+            user=user,
+            defaults={
+                "can_edit": can_edit,
+                "access_requested": False,
+                "access_approved": True,
+                "approved_at": timezone.now(),
+            },
+        )
+
+        # send notification
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            generate_group_name_from_user_id(access_obj.user.id),
+            {
+                "type": "send.notification",
+                "message": f"Your access to '{access_obj.document.name}' has been granted by admin {request.user.first_name} {request.user.last_name}."
+            }
+        )
+
+        serializer = self.get_serializer(access_obj, context={"request": request})
+        return Response(
+            {
+                "detail": "Access granted successfully.",
+                "access": serializer.data,
+                "created": created,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 class DocumentViewSet(ModelViewSet):
     serializer_class = DocumentSerializer
@@ -43,6 +94,15 @@ class DocumentViewSet(ModelViewSet):
         import secrets
         share_token = uuid.uuid4()
         serializer.save(admin=self.request.user, share_token=share_token)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        self.perform_destroy(instance)
+        return Response({
+            "detail": "Document deleted successfully.",
+            "deleted_access": serializer.data
+        }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], url_path="by-token/(?P<token>[^/.]+)", permission_classes=[])
     def get_by_share_token(self, request, token=None):
@@ -100,10 +160,6 @@ class ApproveAccessAPIView(APIView):
         if access_obj.access_approved:
             return Response({"detail": "Access is already approved."}, status=status.HTTP_200_OK)
 
-        # ✅ Check if access was even requested
-        if not access_obj.access_requested:
-            return Response({"detail": "Access has not been requested yet."}, status=status.HTTP_400_BAD_REQUEST)
-
         # Approve access
         access_obj.access_approved = True
         access_obj.can_edit = True
@@ -120,12 +176,15 @@ class ApproveAccessAPIView(APIView):
             }
         )
 
-        return Response({"detail": "Access granted."}, status=status.HTTP_200_OK)
+        return Response({
+            "detail": "Access granted.",
+            "access": DocumentAccessSerializer(access_obj).data
+        }, status=status.HTTP_200_OK)
 
 class RevokeAccessAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOfDocument]
 
-    def put(self, request, access_id):
+    def patch(self, request, access_id):
         access_obj = get_document_access_or_404(access_id)
 
         # If already revoked
@@ -147,7 +206,10 @@ class RevokeAccessAPIView(APIView):
             }
         )
 
-        return Response({"detail": "Access revoked."}, status=status.HTTP_200_OK)
+        return Response({
+            "detail": "Access granted.",
+            "access": DocumentAccessSerializer(access_obj).data
+        }, status=status.HTTP_200_OK)
 
 from rest_framework.exceptions import NotFound
 
