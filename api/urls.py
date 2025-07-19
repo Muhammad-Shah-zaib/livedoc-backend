@@ -7,7 +7,7 @@ from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmai
 from user_auth.views.google_oauth_views import GoogleLoginAPIView
 
 from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView, \
-    CommentListCreateView, CommentUpdateView, DocumentAccessViewSet
+    CommentListCreateView, CommentUpdateView, DocumentAccessViewSet, LiveDocumentAccessView
 
 from ai.views.summarize_document_view import SummarizeDocumentView
 from ai.views.text_completion_view import TextCompletionView
@@ -40,6 +40,9 @@ urlpatterns = router.urls + [
     path('documents/<str:share_token>/request-access', RequestAccessAPIView.as_view(), name='request_access'),
     path("document_access/<int:access_id>/approve-access", ApproveAccessAPIView.as_view(), name='approve_access'),
     path("document_access/<int:access_id>/revoke-access", RevokeAccessAPIView.as_view(), name='revoke_access'),
+
+    # Check if user can connect to the document or not
+    path("documents/<str:share_token>/can-connect", LiveDocumentAccessView.as_view(), name='live_document_access'),
 
     # email verification url
     path("email-verification/<uidb64>/<token>/", VerifyEmailView.as_view(), name='email_verification'),

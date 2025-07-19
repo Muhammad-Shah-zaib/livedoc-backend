@@ -25,7 +25,6 @@ class DocumentSerializer(serializers.ModelSerializer):
         redis = Redis.from_url(settings.REDIS_URL)
         key: str = get_key_for_document(obj.share_token)
         try:
-            print("Redis key for live members:", key)
             return redis.scard(key)
         except redis.exceptions.ConnectionError:
             return 0

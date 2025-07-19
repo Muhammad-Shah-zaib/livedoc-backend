@@ -14,7 +14,7 @@ class Document(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.id} {self.name}"
+        return f"{self.id} {self.name} ({self.admin})"
 
 
 class DocumentAccess(models.Model):

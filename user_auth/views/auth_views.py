@@ -141,7 +141,6 @@ class VerifyEmailView(APIView):
 class ResetPasswordRequestView(APIView):
     def post(self, request):
         email = request.data.get("email").strip().lower()
-        print(email)
         # normalize email input
 
         if not email:

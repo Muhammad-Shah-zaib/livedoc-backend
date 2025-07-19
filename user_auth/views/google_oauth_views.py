@@ -23,7 +23,6 @@ class GoogleLoginAPIView(APIView):
                 settings.GOOGLE_OAUTH2_CLIENT_ID
             )
 
-            print("user_info")
 
             email = user_info['email']
             first_name = user_info.get('given_name', '')

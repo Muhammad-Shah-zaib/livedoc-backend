@@ -276,3 +276,17 @@ class CommentUpdateView(UpdateAPIView):
                     "id": comment.id
                 }
             )
+
+class LiveDocumentAccessView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, share_token, *args, **kwargs):
+        if not share_token:
+            return Response({"detail": "Missing share_token", "status": "CAN_NOT_CONNECT"}, status=status.HTTP_400_BAD_REQUEST)
+
+        document = get_document_by_share_token_or_404(share_token)
+
+        if document.admin == request.user or document.is_live:
+            return Response({"detail": "Access granted", "status": "CAN_CONNECT"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": "Document is not live", "status": "CAN_NOT_CONNECT"}, status=status.HTTP_403_FORBIDDEN)
