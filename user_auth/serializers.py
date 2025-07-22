@@ -79,3 +79,4 @@ class PasswordChangeSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+

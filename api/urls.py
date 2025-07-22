@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from notification.views import NotificationViewSet
 from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
-    ResetPasswordRequestView, LogoutAPIView
+    ResetPasswordRequestView, LogoutAPIView, UpdateProfileView
 from user_auth.views.google_oauth_views import GoogleLoginAPIView
 
 from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView, \
@@ -35,6 +35,7 @@ urlpatterns = router.urls + [
     path("user/get-profile/", UserProfileView.as_view(), name='user_profile_get'),
     path("user/change-password/", PasswordChangeView.as_view(), name='change_password'),
     path("user/by-email", GetUserByEmailView.as_view(), name='get_user_by_email'),
+    path("user/update-profile/", UpdateProfileView.as_view(), name='user_update_profile'),
 
     # request access to a document
     path('documents/<str:share_token>/request-access', RequestAccessAPIView.as_view(), name='request_access'),

@@ -1,5 +1,6 @@
 from asgiref.sync import sync_to_async
 from pycrdt.websocket.django_channels_consumer import YjsConsumer
+from pycrdt import Doc, Text, XmlFragment
 
 from document.models import Document
 
@@ -13,6 +14,7 @@ class YjsDocumentConsumer(YjsConsumer):
         # so get the document here
         document = await self.get_document()
 
+
         if not document.is_live and document.admin != self.scope["user"]:
             await self.close()
             return
@@ -20,8 +22,17 @@ class YjsDocumentConsumer(YjsConsumer):
 
         await super().connect()
 
+    async def make_ydoc(self) -> Doc:
+        doc = Doc()
+        return doc
+
+
     @sync_to_async
     def get_document(self):
         room = self.scope["url_route"]["kwargs"]["room"]
         # Assuming you have a method to get the document by room name
         return Document.objects.select_related("admin").get(share_token=room)
+
+    @sync_to_async
+    def save_document_text(token, text):
+        Document.objects.filter(share_token=token).update(content=text)

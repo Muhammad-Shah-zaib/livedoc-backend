@@ -3,6 +3,7 @@ import json
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.exceptions import DenyConnection
+from django.template.defaulttags import ifchanged
 
 from notification.serializers import NotificationSerializer
 from utils.ws_groups import generate_group_name_from_user_id
@@ -64,30 +65,40 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     # FUNCTION TO SEND NOTIFICATIONS TO THE USER
     async def send_notification(self, event):
-        # Extract data from the event
-        message = event["message"]
-        notif_type = event.get("type", "info")  # fallback to "info"
+        # Basic data
+        print("Received event:", event)
+        message = event.get("message", "")
+        notification_type = event.get("type", "info")
         recipient_id = self.scope["user"].id
 
-        # Ensure we have a valid recipient
-        if not recipient_id:
-            return
+        # Save notification in DB
+        notification = await self.create_notification(recipient_id, message, notification_type)
 
-        # Save to DB
-        notification = await self.create_notification(recipient_id, message, notif_type)
+        # Build dynamic payload
+        payload = {
+                "type": "notification",
+                "payload": NotificationSerializer(notification).data,
+        }
 
-        # Serialize
-        serializer = NotificationSerializer(notification)
-        await self.send(text_data=json.dumps({
-            "type": "notification",
-            "payload": serializer.data
-        }))
+        # Optional extras
+
+        if "doc_id" in event:
+            print("GOT THE DOCUMENT ID")
+            print("GOT THE DOCUMENT ID")
+            print(event["doc_id"])
+            payload["doc_id"] = event["doc_id"]
+        if "revoked_access" in event:
+            payload["revoked_access"] = event["revoked_access"]
+        if "approved_access" in event:
+            payload["approved_access"] = event["approved_access"]
+
+        await self.send(text_data=json.dumps(payload))
 
     @sync_to_async
-    def create_notification(self, recipient_id, message, notif_type):
+    def create_notification(self, recipient_id, message, notification_type):
         recipient = User.objects.get(id=recipient_id)
         return Notification.objects.create(
             recipient=recipient,
             message=message,
-            type=notif_type
+            type=notification_type
         )

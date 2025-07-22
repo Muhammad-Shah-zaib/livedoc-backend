@@ -10,8 +10,7 @@ from django.contrib.auth.tokens import default_token_generator
 from utils.tokens import default_email_token_generator
 
 from user_auth.email import send_verification_email, send_reset_password_email
-from user_auth.serializers import UserSerializer
-
+from user_auth.serializers import UserSerializer, UserUpdateSerializer
 
 User = get_user_model()
 
@@ -116,6 +115,19 @@ class LogoutAPIView(APIView):
         )
 
         return response
+
+class UpdateProfileView(APIView):
+    def patch(self, request):
+        user = request.user
+        serializer = UserUpdateSerializer(user, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Profile updated successfully.", "user": serializer.data},
+                            status=status.HTTP_200_OK)
+
+        return Response({"message": "Invalid data", "errors": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST)
 
 class VerifyEmailView(APIView):
     def get(self, request, uidb64, token):
