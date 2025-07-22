@@ -83,9 +83,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         # Optional extras
 
         if "doc_id" in event:
-            print("GOT THE DOCUMENT ID")
-            print("GOT THE DOCUMENT ID")
-            print(event["doc_id"])
             payload["doc_id"] = event["doc_id"]
         if "revoked_access" in event:
             payload["revoked_access"] = event["revoked_access"]
