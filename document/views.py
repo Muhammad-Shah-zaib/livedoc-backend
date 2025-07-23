@@ -69,6 +69,8 @@ class DocumentAccessViewSet(ModelViewSet):
             generate_group_name_from_user_id(access_obj.user.id),
             {
                 "type": "send.notification",
+                "doc_id": access_obj.document.id,
+                "approved_access": True,
                 "message": f"Your access to '{access_obj.document.name}' has been granted by admin {request.user.first_name} {request.user.last_name}."
             }
         )
