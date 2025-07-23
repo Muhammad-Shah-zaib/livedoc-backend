@@ -66,7 +66,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     # FUNCTION TO SEND NOTIFICATIONS TO THE USER
     async def send_notification(self, event):
         # Basic data
-        print("Received event:", event)
         message = event.get("message", "")
         notification_type = event.get("type", "info")
         recipient_id = self.scope["user"].id
@@ -88,6 +87,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             payload["revoked_access"] = event["revoked_access"]
         if "approved_access" in event:
             payload["approved_access"] = event["approved_access"]
+        if "access_obj" in event:
+            payload["access_obj"] = event["access_obj"]
 
         await self.send(text_data=json.dumps(payload))
 

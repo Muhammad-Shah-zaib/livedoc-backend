@@ -144,6 +144,7 @@ class RequestAccessAPIView(APIView):
             admin_group,
             {
                 "type": "send.notification",
+                "access_obj": DocumentAccessSerializer(access_obj).data,
                 "message": f"{request.user.first_name} {request.user.last_name} has requested access to '{document.name}'."
             }
         )
