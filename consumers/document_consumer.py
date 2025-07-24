@@ -8,6 +8,8 @@ from document.models import Document
 from utils.redis_key_generator import get_key_for_document
 from django.conf import settings
 
+from utils.ws_groups import generate_group_name_from_user_id
+
 
 class DocumentLiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -71,6 +73,20 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
                 await self.redis.srem(get_key_for_document(self.share_token), str(self.user.id))
                 await self.redis.delete(f"doc:{self.share_token}:user:{self.user.id}")
 
+                # Send live count directly to disconnecting user (required for updating states)
+                disconnecting_user_id = self.user.id
+                remaining_count = await self.redis.scard(self.redis_document_key)
+
+                await self.channel_layer.group_send(
+                    generate_group_name_from_user_id(disconnecting_user_id),
+                    {
+                        "type": "notify_live_member_count",
+                        "doc_id": self.document.id,
+                        "count": remaining_count,
+                        "message": f"Live member count updated to {remaining_count}"
+                    }
+                )
+
                 # Broadcast user left
                 await self.channel_layer.group_send(
                     self.group_name,
@@ -129,15 +145,34 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             self.group_name,
             {
                 "type": "live.member.count",
+                "doc_id": self.document.id,
                 "count": count,
             }
         )
 
+        # Notify all present users individually
+        user_ids = await self.redis.smembers(self.redis_document_key)
+        for user_id_bytes in user_ids:
+            user_id = int(user_id_bytes.decode("utf-8"))
+
+            await self.channel_layer.group_send(
+                generate_group_name_from_user_id(user_id),  # Send to NotificationConsumer
+                {
+                    "type": "notify.live.member.count",
+                    "message": f"Live member count updated to {count}",
+                    "doc_id": self.document.id,
+                    "count": count,
+                }
+            )
+
     async def live_member_count(self, event):
         await self.send(text_data=json.dumps({
             "type": "live_members",
+            "doc_id": self.document.id,
             "count": event["count"],
         }))
+
+
 
     async def user_joined(self, event):
         await self.send(text_data=json.dumps({

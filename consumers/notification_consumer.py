@@ -92,6 +92,15 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
         await self.send(text_data=json.dumps(payload))
 
+    async def notify_live_member_count(self, event):
+        # Send live member count to the user
+        await self.send(text_data=json.dumps({
+            "type": "LIVE_MEMBER_COUNT",
+            "doc_id": event["doc_id"],
+            "count": event["count"],
+            "message": event["message"],
+        }))
+
     @sync_to_async
     def create_notification(self, recipient_id, message, notification_type):
         recipient = User.objects.get(id=recipient_id)
