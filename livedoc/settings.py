@@ -143,9 +143,10 @@ CHANNEL_LAYERS = {
         "CONFIG": {
             "hosts": [("127.0.0.1", 6379)],
         },
-    }
+    },
 }
-REDIS_URL = "redis://127.0.0.1:6379/0"
+
+REDIS_URL = config("REDIS_URL")
 
 # Simple JWT
 SIMPLE_JWT = {
