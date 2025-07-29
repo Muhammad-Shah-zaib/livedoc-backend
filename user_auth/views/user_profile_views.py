@@ -21,6 +21,21 @@ class UserProfileView(APIView):
         serializer = UserSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+# api to get all the users
+class GetAllUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        users = CustomUser.objects.filter(is_active=True)
+        serializer = UserSerializer(users, many=True)
+        return Response(
+            {
+                "users": serializer.data,
+                "detail": "Users fetched successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
 class GetUserByEmailView(APIView):
     permission_classes = [IsAuthenticated]
 

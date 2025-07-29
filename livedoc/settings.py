@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'utils',
     'ai',
     'notification',
+    'liveblocks',
 ]
 
 MIDDLEWARE = [
@@ -182,3 +183,6 @@ GOOGLE_OAUTH2_CLIENT_SECRET = config('GOOGLE_OAUTH2_CLIENT_SECRET')
 
 # GEMINI settings
 GEMINI_API_KEY = config('GEMINI_API_KEY')
+
+#LIVEBLOCK settings
+LIVEBLOCKS_SECRET_KEY = config("LIVEBLOCKS_SECRET_KEY")

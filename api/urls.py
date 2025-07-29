@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from liveblocks.views import liveblocks_auth
 from notification.views import NotificationViewSet
 from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
     ResetPasswordRequestView, LogoutAPIView, UpdateProfileView
@@ -12,7 +13,8 @@ from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessA
 from ai.views.summarize_document_view import SummarizeDocumentView
 from ai.views.text_completion_view import TextCompletionView
 
-from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView, GetUserByEmailView
+from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView, \
+    GetUserByEmailView, GetAllUsersView
 from .views import ping, test_token
 
 router = DefaultRouter()
@@ -36,6 +38,7 @@ urlpatterns = router.urls + [
     path("user/change-password/", PasswordChangeView.as_view(), name='change_password'),
     path("user/by-email", GetUserByEmailView.as_view(), name='get_user_by_email'),
     path("user/update-profile/", UpdateProfileView.as_view(), name='user_update_profile'),
+    path("user/all", GetAllUsersView.as_view(), name='get_all_users'),
 
     # request access to a document
     path('documents/<str:share_token>/request-access', RequestAccessAPIView.as_view(), name='request_access'),
@@ -59,4 +62,8 @@ urlpatterns = router.urls + [
     # ai URLs
     path("ai/documents/summarize/", SummarizeDocumentView.as_view(), name='summarize_document'),
     path("ai/documents/text-completion/", TextCompletionView.as_view(), name='text_completion'),
+
+    # LIVEBLOCKS ROUTES
+    path("liveblocks-auth/", liveblocks_auth, name="liveblocks_auth"),
+
 ]
