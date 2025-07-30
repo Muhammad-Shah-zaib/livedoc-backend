@@ -1,10 +1,10 @@
 import json
-import asyncio
+import random
 from redis.asyncio import Redis
 from channels.exceptions import DenyConnection
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
-from document.models import Document
+from document.models import Document, LiveDocumentUser, USER_COLORS
 from utils.redis_key_generator import get_key_for_document
 from django.conf import settings
 
@@ -33,6 +33,8 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             await self.close(code=4002)
             raise DenyConnection()
 
+        live_user = await self._add_user_to_live_document()
+
         # Add user ID to Redis presence set
         await self.redis.sadd(self.redis_document_key, str(self.user.id))
 
@@ -43,26 +45,19 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
                 "id": str(self.user.id),
                 "first_name": self.user.first_name,
                 "last_name": self.user.last_name,
-                "email": self.user.email
+                "email": self.user.email,
+                "color": live_user.color
             }
         )
 
         await self.accept()
         await self.channel_layer.group_add(self.group_name, self.channel_name)
 
-        # Broadcast user joined
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                "type": "user.joined",
-                "user": {
-                    "id": str(self.user.id),
-                    "first_name": self.user.first_name,
-                    "last_name": self.user.last_name,
-                    "email": self.user.email
-                }
-            }
-        )
+        # Send the list of all live users to the newly connected user
+        await self.send_live_users_list()
+
+        # Broadcast user joined to all users in the group
+        await self._broadcast_user_joined(live_user)
 
         # Send updated member count
         await self.broadcast_member_count()
@@ -172,7 +167,12 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             "count": event["count"],
         }))
 
-
+    async def send_live_users_list(self):
+        live_users = await self.get_all_live_users()
+        await self.send(text_data=json.dumps({
+            "type": "live_users_list",
+            "users": list(live_users)
+        }))
 
     async def user_joined(self, event):
         await self.send(text_data=json.dumps({
@@ -186,9 +186,47 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             "user": event["user"]
         }))
 
+    async def _broadcast_user_joined(self, live_user):
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "user.joined",
+                "user": {
+                    "id": str(self.user.id),
+                    "name": f"{self.user.first_name} {self.user.last_name}",
+                    "email": self.user.email,
+                    "color": live_user.color
+                }
+            }
+        )
+
+    @sync_to_async
+    def _add_user_to_live_document(self):
+        live_user, created = LiveDocumentUser.objects.get_or_create(
+            document=self.document,
+            user=self.user,
+            defaults={
+                'email': self.user.email,
+                'name':f'{self.user.first_name} {self.user.last_name}' or self.user.email,
+                'color': random.choice(USER_COLORS)
+            }
+        )
+        return live_user
+
+    @sync_to_async
+    def _remove_user_from_live_document(self):
+        LiveDocumentUser.objects.filter(document=self.document, user=self.user).delete()
+
+
     @sync_to_async
     def is_user_admin(self):
         return self.document.admin_id == self.user.id
+
+    @sync_to_async
+    def get_all_live_users(self):
+        return list(LiveDocumentUser.objects.filter(document=self.document).values(
+            "user_id", "name", "email", "color"
+        ))
 
     async def check_user(self):
         if "user" not in self.scope or self.scope["user"] is None:

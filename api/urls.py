@@ -14,7 +14,7 @@ from ai.views.summarize_document_view import SummarizeDocumentView
 from ai.views.text_completion_view import TextCompletionView
 
 from user_auth.views.user_profile_views import UserInfoUpdateView, UserProfileView, PasswordChangeView, \
-    GetUserByEmailView, GetAllUsersView
+    GetUserByEmailView, GetAllUsersView, GetUsersFromEmailListView, GetLiveUsersEmailsView
 from .views import ping, test_token
 
 router = DefaultRouter()
@@ -38,7 +38,9 @@ urlpatterns = router.urls + [
     path("user/change-password/", PasswordChangeView.as_view(), name='change_password'),
     path("user/by-email", GetUserByEmailView.as_view(), name='get_user_by_email'),
     path("user/update-profile/", UpdateProfileView.as_view(), name='user_update_profile'),
-    path("user/all", GetAllUsersView.as_view(), name='get_all_users'),
+    path("user/all/", GetAllUsersView.as_view(), name='get_all_users'),
+    path("user/by-emails/", GetUsersFromEmailListView.as_view(), name='get_users_by_email_list'),
+    path("user/live-users-emails/", GetLiveUsersEmailsView.as_view(), name='get_live_users_emails'),
 
     # request access to a document
     path('documents/<str:share_token>/request-access', RequestAccessAPIView.as_view(), name='request_access'),

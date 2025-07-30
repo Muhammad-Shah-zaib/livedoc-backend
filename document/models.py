@@ -42,3 +42,30 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment by {self.user.username} on {self.document.name}"
+
+
+
+USER_COLORS = [
+    "#7F63F4", "#F47F63", "#63F4A1", "#63C8F4", "#F4D063",
+    "#FF9AA2", "#B5EAD7", "#C7CEEA", "#FFDAC1", "#E2F0CB",
+    "#FFB347", "#A0CED9", "#D291BC", "#779ECB", "#77DD77",
+    "#FF6961", "#CB99C9", "#FDFD96", "#AEC6CF", "#F49AC2",
+]
+
+class LiveDocumentUser(models.Model):
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='live_users')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='live_documents')
+
+    email = models.EmailField()
+    name = models.CharField(max_length=255)
+    avatar_url = models.URLField(blank=True, null=True)
+    color = models.CharField(max_length=7)  # hex color like "#7F63F4"
+
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('document', 'user')
+
+    def __str__(self):
+        return f"{self.name} active in {self.document.name}"
+
