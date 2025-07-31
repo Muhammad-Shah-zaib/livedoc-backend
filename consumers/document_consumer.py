@@ -1,5 +1,7 @@
 import json
 import random
+import asyncio
+
 from redis.asyncio import Redis
 from channels.exceptions import DenyConnection
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -11,56 +13,90 @@ from django.conf import settings
 from utils.ws_groups import generate_group_name_from_user_id
 
 
+_redis_client = None
+
+async def get_shared_redis():
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = await Redis.from_url(settings.REDIS_URL)
+    return _redis_client
+
+
 class DocumentLiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        await self.check_user()
+        # Basic auth check early
+        if not self.scope.get("user") or self.scope["user"] is None:
+            await self.close(code=4001)
+            raise DenyConnection()
 
-        self.user = self.scope['user']
+        self.user = self.scope["user"]
         self.share_token = self.scope["url_route"]["kwargs"]["share_token"]
         self.group_name = f"doc_{self.share_token}"
 
-        self.document = await sync_to_async(Document.objects.get)(share_token=self.share_token)
-        self.is_admin = await self.is_user_admin()
-        self.redis = await Redis.from_url(settings.REDIS_URL)
+        # Accept early so handshake completes fast
+        await self.accept()
+
+        # Fetch dependencies with timeouts
+        try:
+            self.document = await asyncio.wait_for(
+                sync_to_async(Document.objects.get)(share_token=self.share_token),
+                timeout=3.0
+            )
+        except (asyncio.TimeoutError, Document.DoesNotExist) as e:
+            await self.send_json({"type": "error", "message": "Unable to load document."})
+            await self.close(code=4003)
+            return
+
+        try:
+            self.is_admin = await asyncio.wait_for(self.is_user_admin(), timeout=1.0)
+        except asyncio.TimeoutError:
+            self.is_admin = False  # fail safe
+
+        try:
+            self.redis = await get_shared_redis()
+        except Exception as e:
+            await self.send_json({"type": "error", "message": "Realtime backend unavailable."})
+            await self.close(code=4004)
+            return
+
         self.redis_document_key = get_key_for_document(self.document.share_token)
 
         if not self.document.is_live and not self.is_admin:
-            await self.accept()
-            await self.send(json.dumps({
+            await self.send_json({
                 "type": "error",
                 "message": "Document is not live."
-            }))
+            })
             await self.close(code=4002)
-            raise DenyConnection()
+            return
 
-        live_user = await self.add_user_to_live_document()
+        # Add user to live document (with timeout)
+        try:
+            live_user = await asyncio.wait_for(self.add_user_to_live_document(), timeout=2.0)
+        except asyncio.TimeoutError:
+            await self.send_json({"type": "error", "message": "Failed to add user."})
+            await self.close(code=4005)
+            return
 
-        # Add user ID to Redis presence set
-        await self.redis.sadd(self.redis_document_key, str(self.user.id))
+        try:
+            await self.redis.sadd(self.redis_document_key, str(self.user.id))
+            await self.redis.hset(
+                f"doc:{self.share_token}:user:{self.user.id}",
+                mapping={
+                    "id": str(self.user.id),
+                    "first_name": self.user.first_name,
+                    "last_name": self.user.last_name,
+                    "email": self.user.email,
+                    "color": live_user.color
+                }
+            )
+        except Exception as e: pass
 
-        # Add full user metadata
-        await self.redis.hset(
-            f"doc:{self.share_token}:user:{self.user.id}",
-            mapping={
-                "id": str(self.user.id),
-                "first_name": self.user.first_name,
-                "last_name": self.user.last_name,
-                "email": self.user.email,
-                "color": live_user.color
-            }
-        )
-
-        await self.accept()
         await self.channel_layer.group_add(self.group_name, self.channel_name)
 
-        # Send the list of all live users to the newly connected user
         await self.send_live_users_list()
-
-        # Broadcast user joined to all users in the group
         await self._broadcast_user_joined(live_user)
-
-        # Send updated member count
         await self.broadcast_member_count()
+
 
     async def disconnect(self, close_code):
         if hasattr(self, "user") and hasattr(self, "share_token") and hasattr(self, "redis"):
@@ -204,6 +240,9 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
                 }
             }
         )
+
+    async def send_json(self, content):
+        await self.send(text_data=json.dumps(content))
 
     @sync_to_async()
     def mark_user_offline(self):

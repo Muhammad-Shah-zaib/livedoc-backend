@@ -307,13 +307,9 @@ class LiveDocumentUsersView(APIView):
         document = get_document_or_404(document_id)
 
         is_admin = document.admin == request.user
-        has_access = DocumentAccess.objects.filter(
-            document=document,
-            user=request.user,
-            access_approved=True
-        ).exists()
+        is_user_in_room = LiveDocumentUser.objects.filter(user=request.user, document_id=document_id).exists()
 
-        if not is_admin and not has_access:
+        if not is_admin and not is_user_in_room:
             return Response({"detail": "You do not have access to this document's user list."}, status=status.HTTP_403_FORBIDDEN)
 
         live_users = LiveDocumentUser.objects.filter(document_id=document_id)
