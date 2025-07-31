@@ -60,6 +60,7 @@ class LiveDocumentUser(models.Model):
     name = models.CharField(max_length=255)
     avatar_url = models.URLField(blank=True, null=True)
     color = models.CharField(max_length=7)  # hex color like "#7F63F4"
+    is_online = models.BooleanField(default=False)
 
     joined_at = models.DateTimeField(auto_now_add=True)
 

@@ -1,14 +1,14 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-from liveblocks.views import liveblocks_auth
+from liveblocks.views import get_users_by_email_order
 from notification.views import NotificationViewSet
 from user_auth.views.auth_views import RegisterApiView, LoginAPIView, VerifyEmailView, ResetPasswordConfirmView, \
     ResetPasswordRequestView, LogoutAPIView, UpdateProfileView
 from user_auth.views.google_oauth_views import GoogleLoginAPIView
 
 from document.views import DocumentViewSet, RequestAccessAPIView, ApproveAccessAPIView, RevokeAccessAPIView, \
-    CommentListCreateView, CommentUpdateView, DocumentAccessViewSet, LiveDocumentAccessView
+    CommentListCreateView, CommentUpdateView, DocumentAccessViewSet, LiveDocumentAccessView, LiveDocumentUsersView
 
 from ai.views.summarize_document_view import SummarizeDocumentView
 from ai.views.text_completion_view import TextCompletionView
@@ -66,6 +66,10 @@ urlpatterns = router.urls + [
     path("ai/documents/text-completion/", TextCompletionView.as_view(), name='text_completion'),
 
     # LIVEBLOCKS ROUTES
-    path("liveblocks-auth/", liveblocks_auth, name="liveblocks_auth"),
+    path("liveblocks-auth/", get_users_by_email_order, name="liveblocks_auth"),
+
+    # [EXTRA] document views
+    path("document/<int:document_id>/users/", LiveDocumentUsersView.as_view(), name="live_document_users"),
+
 
 ]

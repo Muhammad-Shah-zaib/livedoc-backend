@@ -13,7 +13,7 @@ from rest_framework import status
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-from .models import Document, DocumentAccess, Comment
+from .models import Document, DocumentAccess, Comment, LiveDocumentUser
 from .permissions import IsAdminOfDocument, IsCommentOwner
 from .serializers import DocumentSerializer, CommentSerializer, DocumentAccessSerializer
 from utils.ws_groups import generate_group_name_from_user_id
@@ -62,7 +62,7 @@ class DocumentAccessViewSet(ModelViewSet):
                 "approved_at": timezone.now(),
             },
         )
-
+        
         # send notification
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
@@ -297,3 +297,43 @@ class LiveDocumentAccessView(APIView):
             return Response({"detail": "Access granted", "status": "CAN_CONNECT"}, status=status.HTTP_200_OK)
         else:
             return Response({"detail": "Document is not live", "status": "CAN_NOT_CONNECT"}, status=status.HTTP_403_FORBIDDEN)
+
+
+class LiveDocumentUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        document_id = kwargs.get('document_id')
+        document = get_document_or_404(document_id)
+
+        is_admin = document.admin == request.user
+        has_access = DocumentAccess.objects.filter(
+            document=document,
+            user=request.user,
+            access_approved=True
+        ).exists()
+
+        if not is_admin and not has_access:
+            return Response({"detail": "You do not have access to this document's user list."}, status=status.HTTP_403_FORBIDDEN)
+
+        live_users = LiveDocumentUser.objects.filter(document_id=document_id)
+        online_users = []
+        offline_users = []
+
+        for l_user in live_users:
+            user_data = {
+                "userId": l_user.user.id,
+                "name": l_user.name,
+                "email": l_user.email,
+                "color": l_user.color,
+                "avatar": l_user.avatar_url,
+            }
+            if l_user.is_online:
+                online_users.append(user_data)
+            else:
+                offline_users.append(user_data)
+
+        return Response({
+            "users_online": online_users,
+            "users_offline": offline_users
+        }, status=status.HTTP_200_OK)

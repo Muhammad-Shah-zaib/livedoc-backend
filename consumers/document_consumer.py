@@ -33,7 +33,7 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
             await self.close(code=4002)
             raise DenyConnection()
 
-        live_user = await self._add_user_to_live_document()
+        live_user = await self.add_user_to_live_document()
 
         # Add user ID to Redis presence set
         await self.redis.sadd(self.redis_document_key, str(self.user.id))
@@ -64,6 +64,8 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         if hasattr(self, "user") and hasattr(self, "share_token") and hasattr(self, "redis"):
+            # Mark user as offline in the database
+            await self.mark_user_offline()
             try:
                 await self.redis.srem(get_key_for_document(self.share_token), str(self.user.id))
                 await self.redis.delete(f"doc:{self.share_token}:user:{self.user.id}")
@@ -91,7 +93,9 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
                             "id": str(self.user.id),
                             "first_name": self.user.first_name,
                             "last_name": self.user.last_name,
-                            "email": self.user.email
+                            "name": f"{self.user.first_name} {self.user.last_name}",
+                            "email": self.user.email,
+                            "is_online": False,
                         }
                     }
                 )
@@ -195,22 +199,43 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
                     "id": str(self.user.id),
                     "name": f"{self.user.first_name} {self.user.last_name}",
                     "email": self.user.email,
-                    "color": live_user.color
+                    "color": live_user.color,
+                    "is_online": True,
                 }
             }
         )
 
+    @sync_to_async()
+    def mark_user_offline(self):
+        try:
+            live_user = LiveDocumentUser.objects.get(document=self.document, user=self.user)
+            live_user.is_online = False
+            live_user.save()
+        except LiveDocumentUser.DoesNotExist:
+            pass
+
     @sync_to_async
-    def _add_user_to_live_document(self):
+    def add_user_to_live_document(self):
         live_user, created = LiveDocumentUser.objects.get_or_create(
             document=self.document,
             user=self.user,
             defaults={
                 'email': self.user.email,
-                'name':f'{self.user.first_name} {self.user.last_name}' or self.user.email,
-                'color': random.choice(USER_COLORS)
+                'name': f'{self.user.first_name} {self.user.last_name}' or self.user.email,
+                'color': random.choice(USER_COLORS),
+                'is_online': True,
             }
         )
+
+        if not created:
+            # Update the existing record
+            live_user.email = self.user.email
+            live_user.name = f'{self.user.first_name} {self.user.last_name}' or self.user.email
+            live_user.is_online = True  # or False, depending on your logic
+            # Optionally update color if you want
+            # live_user.color = random.choice(USER_COLORS)
+            live_user.save()
+
         return live_user
 
     @sync_to_async
@@ -224,9 +249,21 @@ class DocumentLiveConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def get_all_live_users(self):
-        return list(LiveDocumentUser.objects.filter(document=self.document).values(
+        users = LiveDocumentUser.objects.filter(document=self.document).values(
             "user_id", "name", "email", "color"
-        ))
+        )
+        # formatting for frontend
+        formatted_users = [
+            {
+                "userId": user["user_id"],
+                "name": user["name"],
+                "email": user["email"],
+                "color": user["color"]
+            }
+            for user in users
+        ]
+
+        return list(formatted_users)
 
     async def check_user(self):
         if "user" not in self.scope or self.scope["user"] is None:
