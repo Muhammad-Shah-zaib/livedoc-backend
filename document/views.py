@@ -106,11 +106,12 @@ class DocumentViewSet(ModelViewSet):
             "deleted_access": serializer.data
         }, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["get"], url_path="by-token/(?P<token>[^/.]+)", permission_classes=[])
+    @action(detail=False, methods=["get"], url_path="by-token/(?P<token>[^/.]+)", permission_classes=[IsAuthenticated])
     def get_by_share_token(self, request, token=None):
         document = get_document_by_share_token_or_404(share_token=token)
         serializer = self.get_serializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class RequestAccessAPIView(APIView):
     permission_classes = [IsAuthenticated]

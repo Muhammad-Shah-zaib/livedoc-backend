@@ -15,7 +15,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = '__all__'
         read_only_fields = [
-            'admin', 'created_at', 'updated_at', 'share_token',
+            'admin', 'created_at', 'updated_at', 'share_token', 'summary',
             'live_members_count', 'can_write_access'
         ]
 

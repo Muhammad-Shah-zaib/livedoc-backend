@@ -62,7 +62,7 @@ urlpatterns = router.urls + [
     path("comments/<int:pk>/", CommentUpdateView.as_view(), name='comment_update'),
 
     # ai URLs
-    path("ai/documents/summarize/", SummarizeDocumentView.as_view(), name='summarize_document'),
+    path("ai/documents/summarize/<int:id>/", SummarizeDocumentView.as_view(), name='summarize_document'),
     path("ai/documents/text-completion/", TextCompletionView.as_view(), name='text_completion'),
 
     # LIVEBLOCKS ROUTES

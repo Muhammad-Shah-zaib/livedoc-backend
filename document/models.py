@@ -12,6 +12,7 @@ class Document(models.Model):
     share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    summary = models.TextField(blank=True, null=True)
     def __str__(self):
         return f"{self.id} {self.name} ({self.admin})"
 
