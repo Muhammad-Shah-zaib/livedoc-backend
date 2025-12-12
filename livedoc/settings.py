@@ -137,17 +137,17 @@ REST_FRAMEWORK = {
     ]
 }
 
+REDIS_URL = config("REDIS_URL")
 # Channels
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+            "hosts": [REDIS_URL],
         },
     },
 }
 
-REDIS_URL = config("REDIS_URL")
 
 # Simple JWT
 SIMPLE_JWT = {
