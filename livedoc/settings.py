@@ -33,9 +33,7 @@ SESSION_COOKIE_SAMESITE = "None"
 
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
 CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
