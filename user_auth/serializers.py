@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from user_auth.models import CustomUser  # Adjust import if needed
+from user_auth.models import CustomUser
 from utils.validators import validate_password_strength
 
 class UserSerializer(serializers.ModelSerializer):
@@ -36,22 +36,11 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'is_active', 'is_oauth_verified']
 
     def validate_email(self, value):
-        """
-        Custom email validation that allows re-registration for unverified accounts.
-        If a user exists but hasn't verified their email and is inactive, 
-        we delete the old record to allow re-registration.
-        """
         email = value.strip().lower()
         existing_user = CustomUser.objects.filter(email=email).first()
         
         if existing_user:
-            # If user is active or email is verified, they can't register again
-            if existing_user.is_active or existing_user.is_email_verified:
-                raise serializers.ValidationError("A user with this email already exists.")
-            
-            # If user exists but is inactive and unverified, delete to allow re-registration
-            # This handles the case where someone signed up but never verified their email
-            existing_user.delete()
+            raise serializers.ValidationError("A user with this email already exists.")
         
         return email
 
